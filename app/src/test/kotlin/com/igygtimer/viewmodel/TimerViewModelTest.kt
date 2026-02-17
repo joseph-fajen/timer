@@ -1,13 +1,12 @@
 package com.igygtimer.viewmodel
 
-import app.cash.turbine.test
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.model.WorkoutConfig
+import com.igygtimer.util.FakeTimeProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
-import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -18,102 +17,70 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class TimerViewModelTest {
 
-    private val testDispatcher = StandardTestDispatcher()
+    private val testDispatcher = UnconfinedTestDispatcher()
+    private lateinit var fakeTimeProvider: FakeTimeProvider
     private lateinit var viewModel: TimerViewModel
 
     @Before
     fun setup() {
         Dispatchers.setMain(testDispatcher)
-        viewModel = TimerViewModel()
+        fakeTimeProvider = FakeTimeProvider(currentTimeMs = 1000L)
+        viewModel = TimerViewModel(timeProvider = fakeTimeProvider)
     }
 
     @After
     fun tearDown() {
+        // Cancel any running timer coroutines
+        viewModel.stop()
         Dispatchers.resetMain()
     }
 
     @Test
-    fun `initial state is Idle`() = runTest {
-        viewModel.uiState.test {
-            val state = awaitItem()
-            assertTrue(state.phase is TimerPhase.Idle)
-            assertEquals(1, state.currentRound)
-            assertEquals(10, state.totalRounds)
-            assertEquals(1.0f, state.ratio)
-        }
+    fun `initial state is Idle`() {
+        val state = viewModel.uiState.value
+        assertTrue(state.phase is TimerPhase.Idle)
+        assertEquals(1, state.currentRound)
+        assertEquals(10, state.totalRounds)
+        assertEquals(1.0f, state.ratio)
     }
 
     @Test
-    fun `startWorkout transitions to Work phase`() = runTest {
-        viewModel.uiState.test {
-            skipItems(1) // Skip initial Idle
+    fun `startWorkout transitions to Work phase`() {
+        viewModel.startWorkout(WorkoutConfig(ratio = 1.5f, totalRounds = 5))
 
-            viewModel.startWorkout(WorkoutConfig(ratio = 1.5f, totalRounds = 5))
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val state = awaitItem()
-            assertTrue(state.phase is TimerPhase.Work)
-            assertEquals(1, state.currentRound)
-            assertEquals(5, state.totalRounds)
-            assertEquals(1.5f, state.ratio)
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        val state = viewModel.uiState.value
+        assertTrue("Expected Work phase but got ${state.phase}", state.phase is TimerPhase.Work)
+        assertEquals(1, state.currentRound)
+        assertEquals(5, state.totalRounds)
+        assertEquals(1.5f, state.ratio)
     }
 
     @Test
-    fun `pause from Work transitions to Paused`() = runTest {
-        viewModel.uiState.test {
-            skipItems(1)
+    fun `pause from Work transitions to Paused`() {
+        viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
+        viewModel.pause()
 
-            viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
-            testDispatcher.scheduler.advanceUntilIdle()
-            skipItems(1) // Skip Work state
-
-            viewModel.pause()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val state = awaitItem()
-            assertTrue(state.phase is TimerPhase.Paused)
-            val paused = state.phase as TimerPhase.Paused
-            assertTrue(paused.from is TimerPhase.Work)
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        val state = viewModel.uiState.value
+        assertTrue("Expected Paused phase but got ${state.phase}", state.phase is TimerPhase.Paused)
+        val paused = state.phase as TimerPhase.Paused
+        assertTrue("Expected paused from Work but got ${paused.from}", paused.from is TimerPhase.Work)
     }
 
     @Test
-    fun `stop resets to initial state`() = runTest {
-        viewModel.uiState.test {
-            skipItems(1)
+    fun `stop resets to initial state`() {
+        viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
+        viewModel.stop()
 
-            viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
-            testDispatcher.scheduler.advanceUntilIdle()
-            skipItems(1)
-
-            viewModel.stop()
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val state = awaitItem()
-            assertTrue(state.phase is TimerPhase.Idle)
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        val state = viewModel.uiState.value
+        assertTrue("Expected Idle phase but got ${state.phase}", state.phase is TimerPhase.Idle)
     }
 
     @Test
-    fun `workout config is applied correctly`() = runTest {
-        viewModel.uiState.test {
-            skipItems(1)
+    fun `workout config is applied correctly`() {
+        viewModel.startWorkout(WorkoutConfig(ratio = 2.0f, totalRounds = 8))
 
-            viewModel.startWorkout(WorkoutConfig(ratio = 2.0f, totalRounds = 8))
-            testDispatcher.scheduler.advanceUntilIdle()
-
-            val state = awaitItem()
-            assertEquals(8, state.totalRounds)
-            assertEquals(2.0f, state.ratio)
-
-            cancelAndIgnoreRemainingEvents()
-        }
+        val state = viewModel.uiState.value
+        assertEquals(8, state.totalRounds)
+        assertEquals(2.0f, state.ratio)
     }
 }

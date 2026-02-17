@@ -1,11 +1,12 @@
 package com.igygtimer.viewmodel
 
-import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.model.TimerUiState
 import com.igygtimer.model.WorkoutConfig
+import com.igygtimer.util.SystemTimeProvider
+import com.igygtimer.util.TimeProvider
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -15,7 +16,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
-class TimerViewModel : ViewModel() {
+class TimerViewModel(
+    private val timeProvider: TimeProvider = SystemTimeProvider()
+) : ViewModel() {
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
@@ -34,19 +37,19 @@ class TimerViewModel : ViewModel() {
                 totalElapsedMs = 0
             )
         }
-        workoutStartTime = SystemClock.uptimeMillis()
+        workoutStartTime = timeProvider.uptimeMillis()
         startWork()
     }
 
     private fun startWork() {
-        phaseStartTime = SystemClock.uptimeMillis()
+        phaseStartTime = timeProvider.uptimeMillis()
         workStartTime = phaseStartTime
         _uiState.update { it.copy(phase = TimerPhase.Work(it.currentRound), displayTimeMs = 0) }
         startTickLoop()
     }
 
     fun onWorkDone() {
-        val now = SystemClock.uptimeMillis()
+        val now = timeProvider.uptimeMillis()
         lastWorkDurationMs = now - workStartTime
         val restDurationMs = (lastWorkDurationMs * _uiState.value.ratio).toLong()
         startRest(restDurationMs)
@@ -54,7 +57,7 @@ class TimerViewModel : ViewModel() {
 
     private fun startRest(durationMs: Long) {
         timerJob?.cancel()
-        phaseStartTime = SystemClock.uptimeMillis()
+        phaseStartTime = timeProvider.uptimeMillis()
         val round = _uiState.value.currentRound
         _uiState.update { it.copy(phase = TimerPhase.Rest(round, durationMs), displayTimeMs = durationMs) }
         startRestCountdown(durationMs)
@@ -63,9 +66,9 @@ class TimerViewModel : ViewModel() {
     private fun startRestCountdown(durationMs: Long) {
         timerJob = viewModelScope.launch {
             while (isActive) {
-                val elapsed = SystemClock.uptimeMillis() - phaseStartTime
+                val elapsed = timeProvider.uptimeMillis() - phaseStartTime
                 val remaining = (durationMs - elapsed).coerceAtLeast(0)
-                val totalElapsed = SystemClock.uptimeMillis() - workoutStartTime
+                val totalElapsed = timeProvider.uptimeMillis() - workoutStartTime
                 _uiState.update { it.copy(displayTimeMs = remaining, totalElapsedMs = totalElapsed) }
 
                 if (remaining <= 0) {
@@ -91,8 +94,8 @@ class TimerViewModel : ViewModel() {
         timerJob?.cancel()
         timerJob = viewModelScope.launch {
             while (isActive) {
-                val elapsed = SystemClock.uptimeMillis() - phaseStartTime
-                val totalElapsed = SystemClock.uptimeMillis() - workoutStartTime
+                val elapsed = timeProvider.uptimeMillis() - phaseStartTime
+                val totalElapsed = timeProvider.uptimeMillis() - workoutStartTime
                 _uiState.update { it.copy(displayTimeMs = elapsed, totalElapsedMs = totalElapsed) }
                 delay(50)
             }
@@ -113,7 +116,7 @@ class TimerViewModel : ViewModel() {
     fun resume() {
         val state = _uiState.value
         val paused = state.phase as? TimerPhase.Paused ?: return
-        phaseStartTime = SystemClock.uptimeMillis()
+        phaseStartTime = timeProvider.uptimeMillis()
 
         when (val from = paused.from) {
             is TimerPhase.Work -> {
@@ -121,8 +124,8 @@ class TimerViewModel : ViewModel() {
                 _uiState.update { it.copy(phase = from) }
                 timerJob = viewModelScope.launch {
                     while (isActive) {
-                        val elapsed = alreadyElapsed + (SystemClock.uptimeMillis() - phaseStartTime)
-                        val totalElapsed = SystemClock.uptimeMillis() - workoutStartTime
+                        val elapsed = alreadyElapsed + (timeProvider.uptimeMillis() - phaseStartTime)
+                        val totalElapsed = timeProvider.uptimeMillis() - workoutStartTime
                         _uiState.update { it.copy(displayTimeMs = elapsed, totalElapsedMs = totalElapsed) }
                         delay(50)
                     }
