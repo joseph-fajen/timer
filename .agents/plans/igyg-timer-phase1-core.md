@@ -53,8 +53,16 @@ app/src/main/kotlin/com/igygtimer/
 ├── model/
 │   ├── TimerState.kt
 │   └── WorkoutConfig.kt
+├── util/
+│   └── TimeUtils.kt
 └── navigation/
     └── NavGraph.kt
+
+app/src/test/kotlin/com/igygtimer/
+├── viewmodel/
+│   └── TimerViewModelTest.kt
+└── util/
+    └── TimeUtilsTest.kt
 ```
 
 ### Key Patterns
@@ -227,6 +235,11 @@ dependencies {
     // Add these
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.navigation:navigation-compose:2.8.5")
+
+    // Testing
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
+    testImplementation("app.cash.turbine:turbine:1.0.0")
 
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
@@ -1100,14 +1113,210 @@ class MainActivity : ComponentActivity() {
 
 - **VALIDATE**: `./gradlew build` succeeds
 
-### Task 17: Test on Device/Emulator
+### Task 17: CREATE `util/TimeUtils.kt`
+
+```kotlin
+package com.igygtimer.util
+
+object TimeUtils {
+    fun formatTime(millis: Long): String {
+        val totalSeconds = millis / 1000
+        val minutes = totalSeconds / 60
+        val seconds = totalSeconds % 60
+        return String.format("%d:%02d", minutes, seconds)
+    }
+
+    fun calculateRestDuration(workDurationMs: Long, ratio: Float): Long {
+        return (workDurationMs * ratio).toLong()
+    }
+}
+```
+
+### Task 18: CREATE `test/util/TimeUtilsTest.kt`
+
+```kotlin
+package com.igygtimer.util
+
+import org.junit.Assert.assertEquals
+import org.junit.Test
+
+class TimeUtilsTest {
+
+    @Test
+    fun `formatTime returns 0 colon 00 for zero millis`() {
+        assertEquals("0:00", TimeUtils.formatTime(0))
+    }
+
+    @Test
+    fun `formatTime formats seconds correctly`() {
+        assertEquals("0:05", TimeUtils.formatTime(5000))
+        assertEquals("0:59", TimeUtils.formatTime(59000))
+    }
+
+    @Test
+    fun `formatTime formats minutes and seconds correctly`() {
+        assertEquals("1:00", TimeUtils.formatTime(60000))
+        assertEquals("1:30", TimeUtils.formatTime(90000))
+        assertEquals("10:05", TimeUtils.formatTime(605000))
+    }
+
+    @Test
+    fun `formatTime handles large values`() {
+        assertEquals("60:00", TimeUtils.formatTime(3600000))
+    }
+
+    @Test
+    fun `calculateRestDuration with ratio 1 returns same duration`() {
+        assertEquals(30000L, TimeUtils.calculateRestDuration(30000, 1.0f))
+    }
+
+    @Test
+    fun `calculateRestDuration with ratio 2 doubles duration`() {
+        assertEquals(60000L, TimeUtils.calculateRestDuration(30000, 2.0f))
+    }
+
+    @Test
+    fun `calculateRestDuration with ratio 0 point 5 halves duration`() {
+        assertEquals(15000L, TimeUtils.calculateRestDuration(30000, 0.5f))
+    }
+}
+```
+
+- **VALIDATE**: `./gradlew test --tests "com.igygtimer.util.TimeUtilsTest"` passes
+
+### Task 19: CREATE `test/viewmodel/TimerViewModelTest.kt`
+
+```kotlin
+package com.igygtimer.viewmodel
+
+import app.cash.turbine.test
+import com.igygtimer.model.TimerPhase
+import com.igygtimer.model.WorkoutConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.*
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class TimerViewModelTest {
+
+    private val testDispatcher = StandardTestDispatcher()
+    private lateinit var viewModel: TimerViewModel
+
+    @Before
+    fun setup() {
+        Dispatchers.setMain(testDispatcher)
+        viewModel = TimerViewModel()
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun `initial state is Idle`() = runTest {
+        viewModel.uiState.test {
+            val state = awaitItem()
+            assertTrue(state.phase is TimerPhase.Idle)
+            assertEquals(1, state.currentRound)
+            assertEquals(10, state.totalRounds)
+            assertEquals(1.0f, state.ratio)
+        }
+    }
+
+    @Test
+    fun `startWorkout transitions to Work phase`() = runTest {
+        viewModel.uiState.test {
+            skipItems(1) // Skip initial Idle
+
+            viewModel.startWorkout(WorkoutConfig(ratio = 1.5f, totalRounds = 5))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = awaitItem()
+            assertTrue(state.phase is TimerPhase.Work)
+            assertEquals(1, state.currentRound)
+            assertEquals(5, state.totalRounds)
+            assertEquals(1.5f, state.ratio)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `pause from Work transitions to Paused`() = runTest {
+        viewModel.uiState.test {
+            skipItems(1)
+
+            viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
+            testDispatcher.scheduler.advanceUntilIdle()
+            skipItems(1) // Skip Work state
+
+            viewModel.pause()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = awaitItem()
+            assertTrue(state.phase is TimerPhase.Paused)
+            val paused = state.phase as TimerPhase.Paused
+            assertTrue(paused.from is TimerPhase.Work)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `stop resets to initial state`() = runTest {
+        viewModel.uiState.test {
+            skipItems(1)
+
+            viewModel.startWorkout(WorkoutConfig(ratio = 1.0f, totalRounds = 3))
+            testDispatcher.scheduler.advanceUntilIdle()
+            skipItems(1)
+
+            viewModel.stop()
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = awaitItem()
+            assertTrue(state.phase is TimerPhase.Idle)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `workout config is applied correctly`() = runTest {
+        viewModel.uiState.test {
+            skipItems(1)
+
+            viewModel.startWorkout(WorkoutConfig(ratio = 2.0f, totalRounds = 8))
+            testDispatcher.scheduler.advanceUntilIdle()
+
+            val state = awaitItem()
+            assertEquals(8, state.totalRounds)
+            assertEquals(2.0f, state.ratio)
+
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+}
+```
+
+- **VALIDATE**: `./gradlew test --tests "com.igygtimer.viewmodel.TimerViewModelTest"` passes
+
+### Task 20: Test on Device/Emulator
 
 1. Connect Pixel 7 Pro or launch API 36 emulator
 2. Run app from Android Studio (Shift+F10)
 3. Test flow: Set ratio 1:1, 3 rounds → Start → Work (tap) → Rest countdown → repeat → Complete
 - **VALIDATE**: All phase transitions work correctly, timer is accurate
 
-### Task 18: Generate Signed APK
+### Task 21: Generate Signed APK
 
 1. Build → Generate Signed Bundle/APK → APK
 2. Create new keystore (first time): `igyg-release-key.jks`
@@ -1117,11 +1326,54 @@ class MainActivity : ComponentActivity() {
 
 ---
 
+## TESTING STRATEGY
+
+### Unit Tests (Task 18-19)
+
+| Test Class | Coverage |
+|------------|----------|
+| `TimeUtilsTest` | Time formatting, rest duration calculation |
+| `TimerViewModelTest` | State transitions, workout config, pause/stop |
+
+### Test Dependencies
+
+- **JUnit 4** - Test framework
+- **kotlinx-coroutines-test** - Testing coroutines and StateFlow
+- **Turbine** - Testing Kotlin Flows (by Cash App)
+
+### What's Tested
+
+1. **TimeUtils**: Pure functions, easy to test
+   - `formatTime()` edge cases (0, seconds, minutes, large values)
+   - `calculateRestDuration()` with various ratios
+
+2. **TimerViewModel**: State machine transitions
+   - Initial state is Idle
+   - `startWorkout()` transitions to Work
+   - `pause()` captures current phase
+   - `stop()` resets to initial state
+   - Config values applied correctly
+
+### What's NOT Tested (Phase 1)
+
+- UI/Compose tests (deferred - manual testing sufficient for MVP)
+- Integration tests (deferred)
+- Real-time accuracy (tested manually on device)
+
+---
+
 ## VALIDATION COMMANDS
 
 ```bash
 # Build
 ./gradlew build
+
+# Run all unit tests
+./gradlew test
+
+# Run specific test class
+./gradlew test --tests "com.igygtimer.util.TimeUtilsTest"
+./gradlew test --tests "com.igygtimer.viewmodel.TimerViewModelTest"
 
 # Run lint
 ./gradlew lint
@@ -1137,6 +1389,8 @@ class MainActivity : ComponentActivity() {
 
 ## ACCEPTANCE CRITERIA
 
+- [ ] All unit tests pass (`./gradlew test`)
+- [ ] App builds without errors (`./gradlew build`)
 - [ ] App launches on Pixel 7 Pro / Pixel 9a (Android 16)
 - [ ] Home screen allows ratio selection (presets + custom) and round count
 - [ ] Timer starts in WORK phase, counts UP
