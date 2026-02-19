@@ -148,31 +148,38 @@ class TimerService : LifecycleService() {
     }
 
     private fun startTickLoop() {
+        var lastNotificationSecond = -1L
+
         lifecycleScope.launch {
             while (isActive) {
                 repository.tick()
 
                 val state = repository.uiState.value
-                val notificationText = when (state.phase) {
-                    is TimerPhase.Work -> {
-                        val seconds = state.displayTimeMs / 1000
-                        "WORK - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(seconds)}"
+                val currentSecond = state.displayTimeMs / 1000
+
+                // Only update notification once per second to avoid rate limiting
+                if (currentSecond != lastNotificationSecond) {
+                    lastNotificationSecond = currentSecond
+
+                    val notificationText = when (state.phase) {
+                        is TimerPhase.Work -> {
+                            "WORK - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(currentSecond)}"
+                        }
+                        is TimerPhase.Rest -> {
+                            "REST - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(currentSecond)}"
+                        }
+                        is TimerPhase.Paused -> "PAUSED - Round ${state.currentRound}/${state.totalRounds}"
+                        is TimerPhase.Complete -> {
+                            stopSelf()
+                            "Complete!"
+                        }
+                        is TimerPhase.Idle -> {
+                            stopSelf()
+                            "Idle"
+                        }
                     }
-                    is TimerPhase.Rest -> {
-                        val seconds = state.displayTimeMs / 1000
-                        "REST - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(seconds)}"
-                    }
-                    is TimerPhase.Paused -> "PAUSED - Round ${state.currentRound}/${state.totalRounds}"
-                    is TimerPhase.Complete -> {
-                        stopSelf()
-                        "Complete!"
-                    }
-                    is TimerPhase.Idle -> {
-                        stopSelf()
-                        "Idle"
-                    }
+                    updateNotification(notificationText)
                 }
-                updateNotification(notificationText)
 
                 if (!repository.isActive()) {
                     stopSelf()

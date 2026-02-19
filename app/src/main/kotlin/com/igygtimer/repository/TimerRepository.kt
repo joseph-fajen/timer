@@ -1,5 +1,6 @@
 package com.igygtimer.repository
 
+import android.util.Log
 import com.igygtimer.audio.BeepPlayer
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.model.TimerUiState
@@ -13,6 +14,10 @@ import kotlinx.coroutines.flow.update
 class TimerRepository(
     private val timeProvider: TimeProvider
 ) {
+    companion object {
+        private const val TAG = "TimerRepository"
+    }
+
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
@@ -104,6 +109,7 @@ class TimerRepository(
                 val remainingSeconds = (remaining / 1000).toInt()
                 if (remainingSeconds in 1..3 && remainingSeconds != lastBeepSecond) {
                     lastBeepSecond = remainingSeconds
+                    Log.d(TAG, "Triggering beep at $remainingSeconds seconds, beepPlayer=${beepPlayer != null}")
                     beepPlayer?.playBeep()
                 }
 
