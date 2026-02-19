@@ -53,6 +53,10 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
 
+    // Background service and settings persistence
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.androidx.lifecycle.service)
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

@@ -15,24 +15,46 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.igygtimer.IGYGApplication
 import com.igygtimer.model.WorkoutConfig
 import com.igygtimer.ui.component.TimerButton
 import com.igygtimer.ui.theme.WorkGreen
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 @Composable
 fun HomeScreen(
     onStartWorkout: (WorkoutConfig) -> Unit
 ) {
+    val context = LocalContext.current
+    val settingsRepository = remember {
+        (context.applicationContext as IGYGApplication).container.settingsRepository
+    }
+    val coroutineScope = rememberCoroutineScope()
+
     var ratio by remember { mutableStateOf("1.0") }
     var rounds by remember { mutableStateOf("10") }
+    var isLoaded by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!isLoaded) {
+            val settings = settingsRepository.settings.first()
+            ratio = settings.lastRatio.toString()
+            rounds = settings.lastRounds.toString()
+            isLoaded = true
+        }
+    }
 
     val ratioPresets = listOf(0.5f, 1.0f, 1.5f, 2.0f)
 
@@ -51,7 +73,6 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Ratio presets
         Text(
             text = "Work:Rest Ratio",
             style = MaterialTheme.typography.titleLarge,
@@ -83,7 +104,6 @@ fun HomeScreen(
 
         Spacer(modifier = Modifier.height(32.dp))
 
-        // Rounds
         Text(
             text = "Number of Rounds",
             style = MaterialTheme.typography.titleLarge,
@@ -126,9 +146,16 @@ fun HomeScreen(
         TimerButton(
             text = "START",
             onClick = {
+                val ratioValue = ratio.toFloatOrNull() ?: 1.0f
+                val roundsValue = rounds.toIntOrNull() ?: 10
+
+                coroutineScope.launch {
+                    settingsRepository.saveLastWorkout(ratioValue, roundsValue)
+                }
+
                 val config = WorkoutConfig(
-                    ratio = ratio.toFloatOrNull() ?: 1.0f,
-                    totalRounds = rounds.toIntOrNull() ?: 10
+                    ratio = ratioValue,
+                    totalRounds = roundsValue
                 )
                 onStartWorkout(config)
             },
