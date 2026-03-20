@@ -20,10 +20,11 @@ Work (open-ended) → Tap Done → Rest auto-calculated → Next round
 ## Screenshots
 
 <p align="center">
-  <img src="docs/screenshots/work.png" width="200" alt="Work phase" />
-  <img src="docs/screenshots/rest.png" width="200" alt="Rest phase" />
-  <img src="docs/screenshots/paused.png" width="200" alt="Paused" />
-  <img src="docs/screenshots/complete.png" width="200" alt="Complete" />
+  <img src="docs/screenshots/home.png" width="180" alt="Home - setup" />
+  <img src="docs/screenshots/work.png" width="180" alt="Work phase" />
+  <img src="docs/screenshots/rest.png" width="180" alt="Rest phase" />
+  <img src="docs/screenshots/paused.png" width="180" alt="Paused" />
+  <img src="docs/screenshots/complete.png" width="180" alt="Complete" />
 </p>
 
 ## Ratio Examples
