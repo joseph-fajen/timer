@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.igygtimer.util.TimeUtils
 
 @Composable
 fun TimeDisplay(
@@ -14,10 +15,7 @@ fun TimeDisplay(
     modifier: Modifier = Modifier,
     color: Color = Color.White
 ) {
-    val totalSeconds = timeMs / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    val timeString = String.format("%d:%02d", minutes, seconds)
+    val timeString = TimeUtils.formatTime(timeMs)
 
     Box(modifier = modifier, contentAlignment = Alignment.Center) {
         Text(
