@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.model.TimerUiState
+import com.igygtimer.util.TimeUtils
 import com.igygtimer.ui.component.RoundIndicator
 import com.igygtimer.ui.component.TimeDisplay
 import com.igygtimer.ui.component.TimerButton
@@ -150,7 +151,7 @@ fun TimerScreen(
 
         // Total time at bottom
         Text(
-            text = "Total: ${formatTotalTime(uiState.totalElapsedMs)}",
+            text = "Total: ${TimeUtils.formatTime(uiState.totalElapsedMs)}",
             style = MaterialTheme.typography.bodyLarge,
             color = Color.White.copy(alpha = 0.5f),
             modifier = Modifier
@@ -179,11 +180,4 @@ fun TimerScreen(
             }
         )
     }
-}
-
-private fun formatTotalTime(millis: Long): String {
-    val totalSeconds = millis / 1000
-    val minutes = totalSeconds / 60
-    val seconds = totalSeconds % 60
-    return String.format("%d:%02d", minutes, seconds)
 }

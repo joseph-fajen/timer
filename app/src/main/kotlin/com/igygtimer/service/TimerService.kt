@@ -19,6 +19,7 @@ import com.igygtimer.R
 import com.igygtimer.audio.BeepPlayer
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.repository.TimerRepository
+import com.igygtimer.util.TimeUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -163,10 +164,10 @@ class TimerService : LifecycleService() {
 
                     val notificationText = when (state.phase) {
                         is TimerPhase.Work -> {
-                            "WORK - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(currentSecond)}"
+                            "WORK - Round ${state.currentRound}/${state.totalRounds} - ${TimeUtils.formatTime(state.displayTimeMs)}"
                         }
                         is TimerPhase.Rest -> {
-                            "REST - Round ${state.currentRound}/${state.totalRounds} - ${formatTime(currentSecond)}"
+                            "REST - Round ${state.currentRound}/${state.totalRounds} - ${TimeUtils.formatTime(state.displayTimeMs)}"
                         }
                         is TimerPhase.Paused -> "PAUSED - Round ${state.currentRound}/${state.totalRounds}"
                         is TimerPhase.Complete -> {
@@ -189,12 +190,6 @@ class TimerService : LifecycleService() {
                 delay(50)
             }
         }
-    }
-
-    private fun formatTime(totalSeconds: Long): String {
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return String.format("%d:%02d", minutes, seconds)
     }
 
     private fun acquireWakeLock() {
