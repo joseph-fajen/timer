@@ -18,8 +18,8 @@ import com.igygtimer.MainActivity
 import com.igygtimer.R
 import com.igygtimer.audio.BeepPlayer
 import com.igygtimer.model.TimerPhase
-import com.igygtimer.util.TimeUtils
 import com.igygtimer.repository.TimerRepository
+import com.igygtimer.util.TimeUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch

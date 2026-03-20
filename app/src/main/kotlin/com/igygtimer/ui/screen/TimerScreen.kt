@@ -30,8 +30,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.igygtimer.model.TimerPhase
-import com.igygtimer.util.TimeUtils
 import com.igygtimer.model.TimerUiState
+import com.igygtimer.util.TimeUtils
 import com.igygtimer.ui.component.RoundIndicator
 import com.igygtimer.ui.component.TimeDisplay
 import com.igygtimer.ui.component.TimerButton
