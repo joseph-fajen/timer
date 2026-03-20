@@ -1,7 +1,5 @@
 package com.igygtimer.repository
 
-import android.util.Log
-import com.igygtimer.audio.BeepPlayer
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.model.TimerUiState
 import com.igygtimer.model.WorkoutConfig
@@ -14,10 +12,6 @@ import kotlinx.coroutines.flow.update
 class TimerRepository(
     private val timeProvider: TimeProvider
 ) {
-    companion object {
-        private const val TAG = "TimerRepository"
-    }
-
     private val _uiState = MutableStateFlow(TimerUiState())
     val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
 
@@ -26,12 +20,11 @@ class TimerRepository(
     private var workoutStartTime: Long = 0
     private var pausedElapsedWork: Long = 0
 
-    private var lastBeepSecond: Int = -1
-
-    var beepPlayer: BeepPlayer? = null
+    private fun elapsedWorkMs(now: Long): Long =
+        if (pausedElapsedWork > 0) pausedElapsedWork + (now - phaseStartTime)
+        else now - phaseStartTime
 
     fun startWorkout(config: WorkoutConfig) {
-        lastBeepSecond = -1
         _uiState.update {
             TimerUiState(
                 phase = TimerPhase.Idle,
@@ -61,11 +54,7 @@ class TimerRepository(
         val state = _uiState.value
         if (state.phase !is TimerPhase.Work) return
 
-        val workDuration = if (pausedElapsedWork > 0) {
-            pausedElapsedWork + (timeProvider.uptimeMillis() - phaseStartTime)
-        } else {
-            timeProvider.uptimeMillis() - workStartTime
-        }
+        val workDuration = elapsedWorkMs(timeProvider.uptimeMillis())
 
         val restDurationMs = (workDuration * state.ratio).toLong()
         startRest(restDurationMs)
@@ -73,7 +62,6 @@ class TimerRepository(
 
     private fun startRest(durationMs: Long) {
         phaseStartTime = timeProvider.uptimeMillis()
-        lastBeepSecond = -1
         val round = _uiState.value.currentRound
         _uiState.update {
             it.copy(
@@ -90,13 +78,8 @@ class TimerRepository(
 
         when (val phase = state.phase) {
             is TimerPhase.Work -> {
-                val elapsed = if (pausedElapsedWork > 0) {
-                    pausedElapsedWork + (now - phaseStartTime)
-                } else {
-                    now - phaseStartTime
-                }
                 _uiState.update {
-                    it.copy(displayTimeMs = elapsed, totalElapsedMs = totalElapsed)
+                    it.copy(displayTimeMs = elapsedWorkMs(now), totalElapsedMs = totalElapsed)
                 }
             }
             is TimerPhase.Rest -> {
@@ -104,13 +87,6 @@ class TimerRepository(
                 val remaining = (phase.durationMs - elapsed).coerceAtLeast(0)
                 _uiState.update {
                     it.copy(displayTimeMs = remaining, totalElapsedMs = totalElapsed)
-                }
-
-                val remainingSeconds = (remaining / 1000).toInt()
-                if (remainingSeconds in 1..3 && remainingSeconds != lastBeepSecond) {
-                    lastBeepSecond = remainingSeconds
-                    Log.d(TAG, "Triggering beep at $remainingSeconds seconds, beepPlayer=${beepPlayer != null}")
-                    beepPlayer?.playBeep()
                 }
 
                 if (remaining <= 0) {
@@ -137,13 +113,8 @@ class TimerRepository(
 
         when (phase) {
             is TimerPhase.Work -> {
-                val elapsed = if (pausedElapsedWork > 0) {
-                    pausedElapsedWork + (timeProvider.uptimeMillis() - phaseStartTime)
-                } else {
-                    timeProvider.uptimeMillis() - phaseStartTime
-                }
                 _uiState.update {
-                    it.copy(phase = TimerPhase.Paused(phase, elapsed))
+                    it.copy(phase = TimerPhase.Paused(phase, elapsedWorkMs(timeProvider.uptimeMillis())))
                 }
             }
             is TimerPhase.Rest -> {
@@ -180,10 +151,12 @@ class TimerRepository(
         }
     }
 
+    /** Called mid-workout to abort. */
     fun stop() {
-        _uiState.update { TimerUiState() }
+        reset()
     }
 
+    /** Called after completion to return to idle. */
     fun reset() {
         _uiState.update { TimerUiState() }
     }

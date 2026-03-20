@@ -15,6 +15,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.igygtimer.ui.component.TimerButton
 import com.igygtimer.ui.theme.WorkGreen
+import com.igygtimer.ui.theme.WorkGreenDark
+import com.igygtimer.util.TimeUtils
 
 @Composable
 fun CompleteScreen(
@@ -22,13 +24,10 @@ fun CompleteScreen(
     totalRounds: Int,
     onDone: () -> Unit
 ) {
-    val minutes = totalTimeMs / 1000 / 60
-    val seconds = (totalTimeMs / 1000) % 60
-
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF1B5E20)),
+            .background(WorkGreenDark),
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -51,7 +50,7 @@ fun CompleteScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                text = String.format("%d:%02d total", minutes, seconds),
+                text = "${TimeUtils.formatTime(totalTimeMs)} total",
                 style = MaterialTheme.typography.headlineLarge,
                 color = Color.White.copy(alpha = 0.8f)
             )

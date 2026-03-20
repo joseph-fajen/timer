@@ -17,6 +17,7 @@ import com.igygtimer.IGYGApplication
 import com.igygtimer.MainActivity
 import com.igygtimer.R
 import com.igygtimer.audio.BeepPlayer
+import com.igygtimer.audio.BeepScheduler
 import com.igygtimer.model.TimerPhase
 import com.igygtimer.repository.TimerRepository
 import com.igygtimer.util.TimeUtils
@@ -51,6 +52,7 @@ class TimerService : LifecycleService() {
 
     private lateinit var repository: TimerRepository
     private lateinit var beepPlayer: BeepPlayer
+    private lateinit var beepScheduler: BeepScheduler
     private var wakeLock: PowerManager.WakeLock? = null
 
     override fun onCreate() {
@@ -59,7 +61,7 @@ class TimerService : LifecycleService() {
         repository = (application as IGYGApplication).container.timerRepository
 
         beepPlayer = BeepPlayer(this)
-        repository.beepPlayer = beepPlayer
+        beepScheduler = BeepScheduler(repository.uiState, beepPlayer, lifecycleScope)
 
         createNotificationChannel()
 
@@ -84,7 +86,6 @@ class TimerService : LifecycleService() {
 
     override fun onDestroy() {
         super.onDestroy()
-        repository.beepPlayer = null
         beepPlayer.release()
         releaseWakeLock()
     }
